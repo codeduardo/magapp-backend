@@ -1,0 +1,56 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+}
+
+model Category {
+  id                 Int                   @id @default(autoincrement())
+  name               String                @unique @db.VarChar(100)
+  description        String?               @db.VarChar(255)
+  productCategories  ProductCategory[]
+}
+
+model ProductCategory {
+  id          Int       @id @default(autoincrement())
+  productId   Int       @map("product_id")
+  categoryId  Int       @map("category_id")
+  category    Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([productId, categoryId])
+}
+
+model ProductVariant {
+  id                   Int      @id @default(autoincrement())
+  productId            Int      @map("product_id")
+  quantityPerPackage   Int      @map("quantity_per_package")
+  price                Decimal  @default(0) @db.Decimal(10, 2)
+  stockQuantity        Int      @default(0) @map("stock_quantity")
+  product             Product   @relation(fields: [productId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model Product {
+  id                 Int                   @id @default(autoincrement())
+  barcode            String                @unique @db.VarChar(20)
+  name               String                @db.VarChar(100)
+  brand              String                @db.VarChar(300)
+  packagingType      String?               @default("sin empaque") @db.VarChar(50) @map("packaging_type")
+  capacity           Decimal               @db.Decimal(10, 2)
+  entryDate          DateTime              @default(dbgenerated("CURRENT_DATE")) @db.Date @map("entry_date")
+  depletedDate       DateTime?             @db.Date @map("depleted_date")
+  unitId             Int                   @map("unit_id")
+  productCategories  ProductCategory[]
+  productVariants    ProductVariant[]
+  unitOfMeasure      UnitOfMeasure         @relation(fields: [unitId], references: [id], onUpdate: NoAction)
+}
+
+model UnitOfMeasure {
+  id          Int        @id @default(autoincrement())
+  unit        String     @unique @db.VarChar(20)
+  description String?    @db.VarChar(100)
+  products    Product[]
+}
