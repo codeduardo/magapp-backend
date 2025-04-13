@@ -1,36 +1,74 @@
-# This is a basic workflow to help you get started with Actions
+name: Deploy to AWS Lambda with RDS
 
-name: CI
-
-# Controls when the workflow will run
 on:
-  # Triggers the workflow on push or pull request events but only for the "main" branch
   push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+    branches: [main]
+  workflow_dispatch: # Permite ejecutar el workflow manualmente
 
-  # Allows you to run this workflow manually from the Actions tab
-  workflow_dispatch:
-
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  # This workflow contains a single job called "build"
-  build:
-    # The type of runner that the job will run on
+  deploy:
     runs-on: ubuntu-latest
-
-    # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-      # Runs a single command using the runners shell
-      - name: Run a one-line script
-        run: echo Hello, world!
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.16.0"
+          cache: "npm" # Habilita caché para acelerar instalaciones
 
-      # Runs a set of commands using the runners shell
-      - name: Run a multi-line script
+      - name: Install dependencies
+        run: npm ci # Más rápido y seguro que npm install
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Build TypeScript
+        run: npm run build
+
+      - name: Run database migrations
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Prepare Lambda deployment package
         run: |
-          echo Add other actions to build,
-          echo test, and deploy your project.
+          mkdir -p lambda-package
+          # Solo copiar lo necesario
+          cp -r dist package.json prisma lambda-package/
+          # Usar .production.env como .env para Lambda
+          cp .production.env lambda-package/.env
+          cd lambda-package
+          # Instalar solo dependencias de producción
+          npm ci --production
+          npx prisma generate
+          # Eliminar archivos innecesarios para reducir tamaño
+          rm -rf node_modules/typescript node_modules/@types
+          # Compresión
+          cd ..
+          zip -r function.zip lambda-package/
+
+      - name: Deploy to AWS Lambda
+        uses: appleboy/lambda-action@master
+        with:
+          aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws_region: us-east-1
+          function_name: magapp-lambda
+          zip_file: function.zip
+          memory_size: 512 # Aumentado para mejor rendimiento con RDS
+          timeout: 30 # Aumentado por posible latencia con RDS
+          concurrency: 10 # Limita conexiones concurrentes
+          publish: true # Publica una nueva versión
+          environment: |
+            DATABASE_URL=${{ secrets.DATABASE_URL }}
+            PORT=8000
+            NODE_ENV=production
+            # Variables optimizadas para DB
+            DB_POOL_SIZE=1
+            DB_CONNECTION_TIMEOUT=30000
+            DB_IDLE_TIMEOUT=10000
+            SSL_MODE=require # Para conexión segura a RDS
+          layers: ${{ secrets.LAMBDA_LAYER_ARN }} # Opcional: usa una capa para dependencias comunes
+          architecture: x86_64 # o arm64 para optimizar costos
