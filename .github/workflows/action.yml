@@ -16,13 +16,15 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20.x"
-          cache: "npm" # Habilita caché para acelerar instalaciones
+
+      - name: Install pnpm
+        run: npm install -g pnpm
 
       - name: Install dependencies
-        run: npm ci # Más rápido y seguro que npm install
+        run: pnpm install
 
       - name: Generate Prisma Client
-        run: npx prisma generate
+        run: pnpm prisma generate
 
       - name: Build TypeScript
         run: npm run build
@@ -35,39 +37,44 @@ jobs:
       - name: Prepare Lambda deployment package
         run: |
           mkdir -p lambda-package
-          # Solo copiar lo necesario
+          # Only copy necessary files
           cp -r dist package.json prisma lambda-package/
-          # Usar .production.env como .env para Lambda
-          cp .production.env lambda-package/.env
+
+          # create .env file for lambda
+          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" > lambda-package/.env
+          echo "PORT=8000" >> lambda-package/.env
+          echo "NODE_ENV=production" >> lambda-package/.env
+          echo "DB_POOL_SIZE=1" >> lambda-package/.env
+          echo "DB_CONNECTION_TIMEOUT=30000" >> lambda-package/.env
+          echo "DB_IDLE_TIMEOUT=10000" >> lambda-package/.env
+          echo "SSL_MODE=require" >> lambda-package/.env
+
           cd lambda-package
-          # Instalar solo dependencias de producción
-          npm ci --production
+          # install only production dependencies
+          pnpm install --production
           npx prisma generate
-          # Eliminar archivos innecesarios para reducir tamaño
+          # delete unnecessary files
           rm -rf node_modules/typescript node_modules/@types
-          # Compresión
+          # compression
           cd ..
           zip -r function.zip lambda-package/
 
-      - name: Deploy to AWS Lambda
-        uses: appleboy/lambda-action@master
+      # FOR S3
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
         with:
-          aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws_region: us-east-1
-          function_name: magapp-lambda
-          zip_file: function.zip
-          memory_size: 512 # Aumentado para mejor rendimiento con RDS
-          timeout: 30 # Aumentado por posible latencia con RDS
-          concurrency: 10 # Limita conexiones concurrentes
-          publish: true # Publica una nueva versión
-          environment: |
-            DATABASE_URL=${{ secrets.DATABASE_URL }}
-            PORT=8000
-            NODE_ENV=production
-            # Variables optimizadas para DB
-            DB_POOL_SIZE=1
-            DB_CONNECTION_TIMEOUT=30000
-            DB_IDLE_TIMEOUT=10000
-            SSL_MODE=require # Para conexión segura a RDS
-          architecture: x86_64 # o arm64 para optimizar costos
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Upload to S3
+        run: |
+          aws s3 cp function.zip s3://magapp-lambda-deployments/function-${{ github.sha }}.zip
+
+      - name: Update Lambda from S3
+        run: |
+          aws lambda update-function-code \
+            --function-name magapp-lambda \
+            --s3-bucket magapp-lambda-deployments \
+            --s3-key function-${{ github.sha }}.zip \
+            --publish
