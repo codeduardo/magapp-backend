@@ -49,12 +49,21 @@ jobs:
           cd lambda-package
           # install only production dependencies
           npm install --production
+          # Install module-alias for path resolution
+          npm install --save module-alias
           npx prisma generate
+
+          # Create alias registration file
+          echo "const moduleAlias = require('module-alias'); moduleAlias.addAliases({ '@': __dirname + '/dist/src' });" > register-aliases.js
+
+          # Create bridge file that uses aliases
+          echo "require('./register-aliases'); module.exports = require('./dist/src/lambda');" > index.js
+
           # delete unnecessary files
           rm -rf node_modules/typescript node_modules/@types
           # compression
+          zip -r ../function.zip .
           cd ..
-          zip -r function.zip lambda-package/
 
       # FOR S3
       - name: Configure AWS credentials
