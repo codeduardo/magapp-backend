@@ -26,6 +26,9 @@ class LambdaServer extends BaseConfig {
 
     this.app.use(express.json());
     this.app.use(express.urlencoded({ extended: true }));
+    this.app.get("/", (req, res) => {
+      res.status(200).json({ message: "Hello World from Lambda" });
+    });
     this.setupRoutes();
   }
 
