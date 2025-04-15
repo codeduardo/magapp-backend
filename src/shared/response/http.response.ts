@@ -2,6 +2,7 @@ import { Response } from "express";
 
 enum HttpStatus {
   OK = 200,
+  BAD_REQUEST = 400,
   UNAUTHORIZED = 401,
   FORBIDDEN = 403,
   NOT_FOUND = 404,
@@ -15,6 +16,14 @@ export abstract class HttpResponse {
     return res.status(HttpStatus.OK).json({
       status: HttpStatus.OK,
       message: "OK",
+      data: data,
+    });
+  }
+
+  public static BadRequest(res: Response, data: any) {
+    return res.status(HttpStatus.BAD_REQUEST).json({
+      status: HttpStatus.BAD_REQUEST,
+      message: "Bad Request",
       data: data,
     });
   }
