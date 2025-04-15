@@ -4,6 +4,7 @@ import cors from "cors";
 import { ProductRouter } from "./modules/products/product.router";
 import { BaseConfig } from "./config/config";
 import { UomRouter } from "./modules/uom/uom.router";
+import { seed } from "../prisma/seed";
 
 // Reutiliza el código pero sin iniciar el servidor
 class LambdaServer extends BaseConfig {
@@ -28,6 +29,21 @@ class LambdaServer extends BaseConfig {
     this.app.use(express.urlencoded({ extended: true }));
     this.app.get("/", (req, res) => {
       res.status(200).json({ message: "Hello World from Lambda" });
+    });
+    this.app.get("/seed", async (req, res) => {
+      try {
+        const results = await seed();
+        res.status(200).json({
+          message: "Seed ejecutado exitosamente",
+          count: results.length,
+        });
+      } catch (error: any) {
+        console.error("Error ejecutando seed:", error);
+        res.status(500).json({
+          message: "Error ejecutando seed",
+          error: error.message,
+        });
+      }
     });
     this.setupRoutes();
   }

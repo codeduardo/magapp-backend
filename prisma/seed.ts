@@ -30,27 +30,34 @@ async function seedUnitOfMeasures() {
     );
 
     console.log(`✅ unitOfMeasures seeded`);
+    return results;
   } catch (error) {
     console.error("❌ Error in unitOfMeasures seed:", error);
     throw error;
   }
 }
 
-async function main() {
+// Esta es la función principal que exportaremos
+export async function seed() {
   try {
-    await seedUnitOfMeasures();
+    const results = await seedUnitOfMeasures();
     // Aquí podrías agregar más funciones de seed para otras entidades
+    return results;
   } catch (error) {
     console.error("Error en el proceso de seed:", error);
-    process.exit(1);
+    throw error;
+  } finally {
+    await prisma.$disconnect();
   }
 }
 
-main()
-  .catch((e) => {
+// Solo ejecuta la función si este archivo se ejecuta directamente
+if (require.main === module) {
+  seed().catch((e) => {
     console.error(e);
     process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
   });
+}
+
+// Exporta la función para usarla en otros archivos
+export default seed;
