@@ -15,6 +15,7 @@ export class ProductService {
         packaging_type,
         capacity,
         unit,
+        price,
         categories,
         quantity_per_package,
       } = data;
@@ -32,6 +33,7 @@ export class ProductService {
             productVariants: {
               create: {
                 quantityPerPackage: quantity_per_package,
+                price,
               },
             },
             productCategories: {
