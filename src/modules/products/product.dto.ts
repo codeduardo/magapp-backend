@@ -3,6 +3,7 @@ export class CreateProductDto {
     public barcode: string,
     public name: string,
     public brand: string,
+    public price: number,
     public packaging_type: string,
     public capacity: number,
     public unit: string,

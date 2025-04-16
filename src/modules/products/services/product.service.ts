@@ -2,6 +2,7 @@ import { prisma } from "@/data/postgres";
 import { Product } from "@prisma/client";
 import { CreateProductDto } from "../product.dto";
 import { UomService } from "@/modules/uom/services/uom.service";
+import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library";
 
 export class ProductService {
   constructor(private readonly uomService: UomService = new UomService()) {}
@@ -15,6 +16,7 @@ export class ProductService {
         packaging_type,
         capacity,
         unit,
+        price,
         categories,
         quantity_per_package,
       } = data;
@@ -32,6 +34,7 @@ export class ProductService {
             productVariants: {
               create: {
                 quantityPerPackage: quantity_per_package,
+                price,
               },
             },
             productCategories: {
@@ -52,7 +55,17 @@ export class ProductService {
         });
         return product;
       });
-    } catch (error: any) {
+    } catch (error) {
+      if (
+        error instanceof PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        throw {
+          status: 409,
+          message: `Ya existe un producto con el mismo barcode`,
+          error: "UniqueConstraintViolation",
+        };
+      }
       throw error;
     }
   }
